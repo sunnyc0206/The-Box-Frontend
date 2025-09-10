@@ -4,14 +4,12 @@ import styled from "styled-components";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FiHome,
-  FiGlobe,
-  FiTv,
-  FiStar,
-  FiSettings,
   FiSearch,
   FiX,
 } from "react-icons/fi";
 import { apiService } from "../services/apiService";
+import { useAppDispatch, useSearch } from "../store/hooks";
+import { setCountrySearchQuery } from "../store/slices/searchSlice";
 
 const SidebarContainer = styled(motion.aside)`
   width: 280px;
@@ -65,11 +63,6 @@ const SearchIcon = styled(FiSearch)`
   color: ${(props) => props.theme.colors.textSecondary};
   font-size: 1.2rem;
 `;
-
-// const SidebarHeader = styled.div`
-//   padding: 2rem 1.5rem 1rem;
-//   border-bottom: 1px solid ${props => props.theme.colors.border};
-// `;
 
 const SidebarTitle = styled.h2`
   font-size: 1.25rem;
@@ -185,7 +178,7 @@ const CloseButton = styled.button`
 const SidebarHeader = styled.div`
   padding: 2rem 1.5rem 1rem;
   border-bottom: 1px solid ${(props) => props.theme.colors.border};
-  position: relative; // ADD this line to enable absolute positioning of the button
+  position: relative;
 `;
 
 const Sidebar = ({
@@ -196,24 +189,34 @@ const Sidebar = ({
   handleSelectedCountry,
 }) => {
   const [categories, setCategories] = useState({});
-  const [countrySearchQuery, setCountrySearchQuery] = useState(""); // New state for country search
+  //const [countrySearchQuery, setCountrySearchQuery] = useState("");
+
+  const { countrySearchQuery } = useSearch();
+  const dispatch = useAppDispatch();
 
   const navigate = useNavigate();
   const location = useLocation();
 
-  // useEffect(() => {
-  //   const handleClickOutside = (event) => {
-  //     if (isOpen && window.innerWidth <= 768) {
-  //       const sidebar = document.querySelector('[data-sidebar]');
-  //       if (sidebar && !sidebar.contains(event.target)) {
-  //         onClose();
-  //       }
-  //     }
-  //   };
+  useEffect(() => {
+   
+    const handleClickOutside = (event) => {
+      
+      if (isOpen && window.innerWidth <= 768) {
+        const sidebar = document.querySelector('[data-sidebar]');
+       
+        if (sidebar && !sidebar.contains(event.target)) {
+          onClose();
+        }
+      }
+    };
 
-  //   document.addEventListener('mousedown', handleClickOutside);
-  //   return () => document.removeEventListener('mousedown', handleClickOutside);
-  // }, [isOpen, onClose]);
+    document.addEventListener('mousedown', handleClickOutside);
+
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen, onClose]); 
 
   useEffect(() => {
     if (selectedCountry) {
@@ -235,6 +238,11 @@ const Sidebar = ({
       selectedCountry?.code === country.code ? null : country
     );
     navigate(`/country/${country.code}`);
+    
+    
+    if (window.innerWidth <= 768) {
+        onClose(); 
+    }
   };
 
   const handleCategoryClick = (category) => {
@@ -245,121 +253,114 @@ const Sidebar = ({
         )}`
       );
     }
+    if (window.innerWidth <= 768) {
+        onClose();
+    }
   };
 
   const handleHomeClick = () => {
     navigate("/");
     handleSelectedCountry(null);
+    if (window.innerWidth <= 768) {
+      onClose();
+    }
   };
 
-  // New handler for the country search input
   const handleCountrySearch = (e) => {
-    setCountrySearchQuery(e.target.value);
+    //setCountrySearchQuery(e.target.value);
+    dispatch(setCountrySearchQuery(e.target.value));
   };
 
   const isActive = (path) => location.pathname === path;
 
-  // Filter countries based on the search query
   const filteredCountries = countries.filter((country) =>
     country.name.toLowerCase().includes(countrySearchQuery.toLowerCase())
   );
 
   return (
     <AnimatePresence>
-      <SidebarContainer
-        initial={{ x: -280 }}
-        animate={{ x: 0 }}
-        exit={{ x: -280 }}
-        data-sidebar
-      >
-        <SidebarHeader>
-          <SidebarTitle>TheBox</SidebarTitle>
-          <SidebarSubtitle>Your IPTV Streaming Hub</SidebarSubtitle>
-          <CloseButton onClick={onClose}>
-            <FiX />
-          </CloseButton>
-        </SidebarHeader>
+      {isOpen && (
+        <SidebarContainer
+          initial={{ x: -280 }}
+          animate={{ x: 0 }}
+          exit={{ x: -280 }}
+          data-sidebar
+        >
+          <SidebarHeader>
+            <SidebarTitle>TheBox</SidebarTitle>
+            <SidebarSubtitle>Your IPTV Streaming Hub</SidebarSubtitle>
+            <CloseButton onClick={onClose}>
+              <FiX />
+            </CloseButton>
+          </SidebarHeader>
 
-        <NavigationSection>
-          <SectionTitle>Navigation</SectionTitle>
-          <NavItem
-            $isActive={isActive("/")}
-            onClick={handleHomeClick}
-            whileHover={{ x: 5 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <NavIcon>
-              <FiHome />
-            </NavIcon>
-            <NavText $isActive={isActive("/")}>Home</NavText>
-          </NavItem>
-        </NavigationSection>
-
-        <NavigationSection>
-          <SectionTitle>Countries</SectionTitle>
-          <SearchContainer>
-            <SearchIcon />
-            <SearchInput
-              type="text"
-              placeholder="Search countries..."
-              value={countrySearchQuery}
-              onChange={handleCountrySearch}
-            />
-          </SearchContainer>
-
-          {filteredCountries.map((country) => (
-            <CountryItem
-              key={country.code}
-              $isActive={location.pathname.includes(`/country/${country.code}`)}
-              onClick={() => handleCountryClick(country)}
+          <NavigationSection>
+            <SectionTitle>Navigation</SectionTitle>
+            <NavItem
+              $isActive={isActive("/")}
+              onClick={handleHomeClick}
               whileHover={{ x: 5 }}
               whileTap={{ scale: 0.95 }}
             >
-              <CountryFlag src={country.flagUrl} alt={country.name} />
-              <NavText
-                $isActive={location.pathname.includes(
-                  `/country/${country.code}`
-                )}
-              >
-                {country.name}
-              </NavText>
-            </CountryItem>
-          ))}
-        </NavigationSection>
+              <NavIcon>
+                <FiHome />
+              </NavIcon>
+              <NavText $isActive={isActive("/")}>Home</NavText>
+            </NavItem>
+          </NavigationSection>
 
-        {selectedCountry && categories[selectedCountry.code] && (
           <NavigationSection>
-            <SectionTitle>Categories - {selectedCountry.name}</SectionTitle>
-            {categories[selectedCountry.code].map((category) => (
-              <CategoryItem
-                key={category}
-                $isActive={location.search.includes(
-                  `category=${encodeURIComponent(category)}`
-                )}
-                onClick={() => handleCategoryClick(category)}
+            <SectionTitle>Countries</SectionTitle>
+            <SearchContainer>
+              <SearchIcon />
+              <SearchInput
+                type="text"
+                placeholder="Search countries..."
+                value={countrySearchQuery} 
+                onChange={handleCountrySearch}
+              />
+            </SearchContainer>
+
+            {filteredCountries.map((country) => (
+              <CountryItem
+                key={country.code}
+                $isActive={location.pathname.includes(`/country/${country.code}`)}
+                onClick={() => handleCountryClick(country)}
                 whileHover={{ x: 5 }}
                 whileTap={{ scale: 0.95 }}
               >
-                {category}
-              </CategoryItem>
+                <CountryFlag src={country.flagUrl} alt={country.name} />
+                <NavText
+                  $isActive={location.pathname.includes(
+                    `/country/${country.code}`
+                  )}
+                >
+                  {country.name}
+                </NavText>
+              </CountryItem>
             ))}
           </NavigationSection>
-        )}
 
-        {/* <NavigationSection>
-          <SectionTitle>Settings</SectionTitle>
-          <NavItem
-            onClick={() => navigate("/settings")}
-            whileHover={{ x: 5 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <NavIcon>
-              <FiSettings />
-            </NavIcon>
-            <NavText>Settings</NavText>
-          </NavItem>
-        </NavigationSection> */}
-      </SidebarContainer>
+          {selectedCountry && categories[selectedCountry.code] && (
+            <NavigationSection>
+              <SectionTitle>Categories - {selectedCountry.name}</SectionTitle>
+              {categories[selectedCountry.code].map((category) => (
+                <CategoryItem
+                  key={category}
+                  $isActive={location.search.includes(
+                    `category=${encodeURIComponent(category)}`
+                  )}
+                  onClick={() => handleCategoryClick(category)}
+                  whileHover={{ x: 5 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  {category}
+                </CategoryItem>
+              ))}
+            </NavigationSection>
+          )}
+        </SidebarContainer>
+      )}
     </AnimatePresence>
   );
 };

@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
-import { FiSearch, FiPlay, FiTv, FiFilter, FiGlobe } from 'react-icons/fi';
-import { apiService } from '../services/apiService';
+import { FiSearch, FiPlay, FiTv } from 'react-icons/fi';
+import { useSearch, useCountries } from '../store/hooks';
+import { searchChannels, setSelectedCountryFilter, setSortBy } from '../store/slices/searchSlice';
 import img from '../assets/thebox.png';
 
 const PageContainer = styled.div`
@@ -12,44 +13,6 @@ const PageContainer = styled.div`
   padding: 2rem 0;
 `;
 
-const SearchHeader = styled.div`
-  text-align: center;
-  margin-bottom: 3rem;
-  padding: 2rem;
-  background: ${props => props.theme.colors.surface};
-  border-radius: ${props => props.theme.borderRadius.medium};
-  border: 1px solid ${props => props.theme.colors.border};
-`;
-
-const SearchTitle = styled.h1`
-  font-size: 2.5rem;
-  font-weight: 700;
-  margin-bottom: 1rem;
-  color: ${props => props.theme.colors.text};
-`;
-
-const SearchQuery = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-`;
-
-const SearchIcon = styled(FiSearch)`
-  font-size: 1.5rem;
-  color: ${props => props.theme.colors.primary};
-`;
-
-const QueryText = styled.span`
-  font-size: 1.25rem;
-  color: ${props => props.theme.colors.textSecondary};
-`;
-
-const ResultsCount = styled.p`
-  color: ${props => props.theme.colors.textSecondary};
-  font-size: 1.1rem;
-`;
 
 const FiltersSection = styled.div`
   display: flex;
@@ -222,61 +185,43 @@ const ErrorMessage = styled.div`
   color: ${props => props.theme.colors.error};
 `;
 
-const SearchResults = ({countries,handleSelectedCountry}) => {
+const SearchResults = ({countries, handleSelectedCountry}) => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [filteredResults, setFilteredResults] = useState([]);
-  const [sortBy, setSortBy] = useState('name');
-  const[selectedCountry,setSelectedCountry] = useState('');
+  const { 
+    searchResults, 
+    selectedCountryFilter, 
+    sortBy, 
+    loading, 
+    error, 
+    dispatch 
+  } = useSearch();
+  const { countries: countriesList } = useCountries();
 
   const query = searchParams.get('q');
 
   useEffect(() => {
     if (query) {
-      performSearch();
+      dispatch(searchChannels({ query }));
     }
-  }, [query]);
-
-  useEffect(() => {
-    filterAndSortResults();
-  }, [results, selectedCountry, sortBy]);
-
-  const performSearch = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const searchResults = await apiService.searchChannels(query);
-      setResults(searchResults);
-    } catch (error) {
-      console.error('Error performing search:', error);
-      setError('Failed to perform search. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [query, dispatch]);
 
   const filterAndSortResults = () => {
-    let filtered = [...results];
+    let filtered = [...searchResults];
 
     // Filter by country
-    if (selectedCountry) {
-      filtered = filtered.filter(channel => channel?.countryCode === selectedCountry);
-      
+    if (selectedCountryFilter) {
+      filtered = filtered.filter(channel => channel?.countryCode === selectedCountryFilter);
     }
 
-    
     // Sort results
     filtered.sort((a, b) => {
       switch (sortBy) {
         case 'name':
           return a.name.localeCompare(b.name);
         case 'country':
-          return a?.code.localeCompare(b.code);
+          return a?.countryCode?.localeCompare(b.countryCode);
         case 'category':
           return (a.category || '').localeCompare(b.category || '');
         default:
@@ -284,8 +229,10 @@ const SearchResults = ({countries,handleSelectedCountry}) => {
       }
     });
 
-    setFilteredResults(filtered);
+    return filtered;
   };
+
+  const filteredResults = filterAndSortResults();
 
   const handleChannelClick = (channelId) => {
     navigate(`/channel/${channelId}`);
@@ -293,12 +240,11 @@ const SearchResults = ({countries,handleSelectedCountry}) => {
 
   const handleCountryChange = (e) => {
     console.warn(e.target.value,"line 295 in handleCountryChange");
-
-    setSelectedCountry(e.target.value);
+    dispatch(setSelectedCountryFilter(e.target.value));
   };
 
   const handleSortChange = (e) => {
-    setSortBy(e.target.value);
+    dispatch(setSortBy(e.target.value));
   };
 
   // const getCountryName = (countryCode) => {
@@ -354,9 +300,9 @@ const SearchResults = ({countries,handleSelectedCountry}) => {
       </SearchHeader> */}
 
       <FiltersSection>
-        <FilterSelect value={selectedCountry} onChange={handleCountryChange}>
+        <FilterSelect value={selectedCountryFilter} onChange={handleCountryChange}>
           <option value="">All Countries</option>
-          {countries.map(country => (
+          {countriesList.map(country => (
             <option key={country?.name} value={country?.code}>
               {(country.name)}
             </option>
@@ -409,11 +355,11 @@ const SearchResults = ({countries,handleSelectedCountry}) => {
                   )}
                   <CountryTag>
                     <img 
-                      src={selectedCountry.flagUrl} 
+                      src={channel.countryCode} 
                       alt={channel.countryCode}
                       style={{ width: '12px', height: '8px' }}
                     />
-                    {/* {selectedCountry.name} */}
+                    {channel.countryCode}
                   </CountryTag>
                 </ChannelMeta>
                 <ChannelDescription>

@@ -53,28 +53,42 @@ const ModalButton = styled(motion.button)`
   }
 `;
 
-const ErrorModal = ({ message, onRefresh }) => {
+const ErrorModal = ({ message, onRefresh, onClose }) => {
   return (
     <ModalOverlay
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
+      onClick={onClose}
     >
       <ModalContent
         initial={{ y: -50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 100 }}
+        onClick={(e) => e.stopPropagation()}
       >
         <ModalTitle>Sorry :(</ModalTitle>
         <ModalTitle>It's not you, it's us. </ModalTitle><br></br>
         <ModalMessage>{message}</ModalMessage>
-        <ModalButton
-          onClick={onRefresh}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          Refresh
-        </ModalButton>
+        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+          {onClose && (
+            <ModalButton
+              onClick={onClose}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              style={{ background: '#6b7280' }}
+            >
+              Close
+            </ModalButton>
+          )}
+          <ModalButton
+            onClick={onRefresh}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            Refresh
+          </ModalButton>
+        </div>
       </ModalContent>
     </ModalOverlay>
   );

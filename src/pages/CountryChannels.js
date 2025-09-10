@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
-import { motion } from 'framer-motion';
-import { FiPlay, FiFilter, FiSearch, FiTv, FiGlobe } from 'react-icons/fi';
+import { motion, AnimatePresence } from 'framer-motion';
+import { FiPlay, FiFilter, FiTv, FiX } from 'react-icons/fi';
 import { apiService } from '../services/apiService';
 import img from '../assets/thebox.png';
 
 const PageContainer = styled.div`
   max-width: 1200px;
   margin: 0 auto;
-  padding: 2rem 0;
+  padding: 2rem 1rem; 
 `;
 
 const PageHeader = styled.div`
@@ -21,6 +21,11 @@ const PageHeader = styled.div`
   background: ${props => props.theme.colors.surface};
   border-radius: ${props => props.theme.borderRadius.medium};
   border: 1px solid ${props => props.theme.colors.border};
+
+  @media (max-width: ${props => props.theme.breakpoints.mobile}) {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 `;
 
 const CountryFlag = styled.img`
@@ -28,6 +33,7 @@ const CountryFlag = styled.img`
   height: 40px;
   border-radius: ${props => props.theme.borderRadius.small};
   object-fit: cover;
+  flex-shrink: 0; 
 `;
 
 const HeaderContent = styled.div`
@@ -49,42 +55,15 @@ const ChannelCount = styled.p`
 const ControlsSection = styled.div`
   display: flex;
   gap: 1rem;
-  margin-bottom: 2rem;
-  flex-wrap: wrap;
   align-items: center;
-`;
+  margin-left: auto;
 
-const SearchContainer = styled.div`
-  flex: 1;
-  min-width: 300px;
-  position: relative;
-`;
-
-const SearchInput = styled.input`
-  width: 100%;
-  padding: 0.75rem 1rem 0.75rem 3rem;
-  background: ${props => props.theme.colors.card};
-  border: 1px solid ${props => props.theme.colors.border};
-  border-radius: ${props => props.theme.borderRadius.medium};
-  color: ${props => props.theme.colors.text};
-  font-size: 1rem;
-  
-  &:focus {
-    border-color: ${props => props.theme.colors.primary};
-    outline: none;
+  @media (max-width: ${props => props.theme.breakpoints.mobile}) {
+    margin-left: 0;
+    margin-top: 1rem;
+    width: 100%;
+    justify-content: space-between;
   }
-  
-  &::placeholder {
-    color: ${props => props.theme.colors.textSecondary};
-  }
-`;
-
-const SearchIcon = styled(FiSearch)`
-  position: absolute;
-  left: 1rem;
-  top: 50%;
-  transform: translateY(-50%);
-  color: ${props => props.theme.colors.textSecondary};
 `;
 
 const FilterSelect = styled.select`
@@ -95,26 +74,19 @@ const FilterSelect = styled.select`
   color: ${props => props.theme.colors.text};
   font-size: 1rem;
   cursor: pointer;
-  
+  flex-grow: 1; // Allow the select to grow to fill space
+
   &:focus {
     border-color: ${props => props.theme.colors.primary};
     outline: none;
   }
+  
+  @media (max-width: ${props => props.theme.breakpoints.mobile}) {
+    width: 100%;
+    max-width: none;
+  }
 `;
 
-const CategoriesSection = styled.div`
-  margin-bottom: 2rem;
-`;
-
-const CategoryTitle = styled.h3`
-  font-size: 1.5rem;
-  font-weight: 600;
-  margin-bottom: 1rem;
-  color: ${props => props.theme.colors.text};
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-`;
 
 const ChannelsGrid = styled.div`
   display: grid;
@@ -225,9 +197,9 @@ const NoResults = styled.div`
   color: ${props => props.theme.colors.textSecondary};
 `;
 
-const CountryChannels = ({selectedCountry, handleSelectedCountry}) => {
+const CountryChannels = ({ selectedCountry }) => {
   const { countryCode } = useParams();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   
   const [channels, setChannels] = useState([]);
@@ -240,18 +212,8 @@ const CountryChannels = ({selectedCountry, handleSelectedCountry}) => {
   const categoryFilter = searchParams.get('category');
 
   useEffect(() => {
-    const storedCountryJSON = localStorage.getItem('selectedCountry');
-    
-    if (storedCountryJSON) {
-        const storedCountry = JSON.parse(storedCountryJSON);
-        selectedCountry = storedCountry;
-      } 
-  }, [countryCode]);
-
-  useEffect(() => {
     if (countryCode) {
       fetchData();
-      // handleSelectedCountry(countryCode, 'code');
     }
   }, [countryCode, categoryFilter]);
 
@@ -270,7 +232,6 @@ const CountryChannels = ({selectedCountry, handleSelectedCountry}) => {
       setChannels(channelsData);
       setCategories(categoriesData);
       
-      // Set category filter from URL if present
       if (categoryFilter) {
         setSelectedCategory(categoryFilter);
       }
@@ -283,19 +244,14 @@ const CountryChannels = ({selectedCountry, handleSelectedCountry}) => {
 
   const filterChannels = () => {
     let filtered = [...channels];
-
-    // Filter by category
     if (selectedCategory) {
       filtered = filtered.filter(channel => channel.category === selectedCategory);
     }
-
-    // Filter by search query
     if (searchQuery) {
       filtered = filtered.filter(channel =>
         channel.name.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
-
     setFilteredChannels(filtered);
   };
 
@@ -303,17 +259,14 @@ const CountryChannels = ({selectedCountry, handleSelectedCountry}) => {
     navigate(`/channel/${channelId}`);
   };
 
-  const handleCategoryChange = (category) => {
+  const handleCategoryChange = (e) => {
+    const category = e.target.value;
     setSelectedCategory(category);
     if (category) {
-      navigate(`/country/${countryCode}?category=${encodeURIComponent(category)}`);
+      setSearchParams({ category: encodeURIComponent(category) });
     } else {
-      navigate(`/country/${countryCode}`);
+      setSearchParams({});
     }
-  };
-
-  const handleSearchChange = (e) => {
-    setSearchQuery(e.target.value);
   };
 
   if (loading) {
@@ -324,11 +277,6 @@ const CountryChannels = ({selectedCountry, handleSelectedCountry}) => {
     );
   }
 
-  // const countryName = countryCode === 'IN' ? 'India' : 'United States';
-  // const flagUrl = countryCode === 'IN' 
-  //   ? 'https://flagcdn.com/w40/in.png' 
-  //   : 'https://flagcdn.com/w40/us.png';
-
   return (
     <PageContainer>
       <PageHeader>
@@ -338,21 +286,19 @@ const CountryChannels = ({selectedCountry, handleSelectedCountry}) => {
           <ChannelCount>{channels.length} channels available</ChannelCount>
         </HeaderContent>
         <ControlsSection>
-        <FiFilter />
-
-        <FilterSelect 
-          value={selectedCategory}
-          onChange={(e) => handleCategoryChange(e.target.value)}
-        >
-          <option value="">ALL CATEGORIES</option>
-          {categories.map((category) => (
-            <option key={category} value={category}>
-              {category.toUpperCase()}
-            </option>
-          ))}
-        </FilterSelect>
-
-      </ControlsSection>
+          <FiFilter />
+          <FilterSelect 
+            value={selectedCategory}
+            onChange={handleCategoryChange}
+          >
+            <option value="">ALL CATEGORIES</option>
+            {categories.map((category) => (
+              <option key={category} value={category}>
+                {category.toUpperCase()}
+              </option>
+            ))}
+          </FilterSelect>
+        </ControlsSection>
       </PageHeader>
     
 
@@ -373,7 +319,7 @@ const CountryChannels = ({selectedCountry, handleSelectedCountry}) => {
             >
               <ChannelLogo>
                 {channel.logoUrl ? (
-                  <img src={img} alt={img}  />
+                  <img src={img} alt={img} />
                 ) : (
                   <div className="placeholder">
                     <FiTv />
@@ -403,4 +349,4 @@ const CountryChannels = ({selectedCountry, handleSelectedCountry}) => {
   );
 };
 
-export default CountryChannels; 
+export default CountryChannels;
