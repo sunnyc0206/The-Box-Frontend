@@ -1,9 +1,12 @@
 import React, { useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import styled from "styled-components";
-import { FiSearch, FiMenu, FiX } from "react-icons/fi";
+import { FiSearch, FiMenu, FiSun, FiMoon, FiX } from "react-icons/fi"; // Import FiX
 import { motion } from "framer-motion";
 import img from "../assets/thebox-logo.png";
+import { useUI, useAppDispatch } from "../store/hooks";
+import { setTheme } from "../store/slices/uiSlice";
+import { setCountrySearchQuery, setSearchQuery } from "../store/slices/searchSlice";
 
 const HeaderContainer = styled.header`
   background: ${(props) => props.theme.colors.surface};
@@ -11,7 +14,6 @@ const HeaderContainer = styled.header`
   padding: 1rem 2rem;
   display: flex;
   align-items: center;
-  /* Use flex-start to align items to the left */
   justify-content: flex-start;
   gap: 2rem;
   position: sticky;
@@ -77,18 +79,19 @@ const SearchIcon = styled(FiSearch)`
   font-size: 1.2rem;
 `;
 
-const SearchButton = styled(motion.button)`
-  background: ${(props) => props.theme.colors.primary};
-  color: white;
-  padding: 0.75rem 1.5rem;
-  border-radius: ${(props) => props.theme.borderRadius.medium};
-  font-weight: 600;
+const ClearSearchButton = styled.button`
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: ${(props) => props.theme.colors.textSecondary};
+  font-size: 1.2rem;
+  cursor: pointer;
   transition: ${(props) => props.theme.transitions.fast};
-
   &:hover {
-    background: ${(props) => props.theme.colors.secondary};
-    transform: translateY(-2px);
-    box-shadow: ${(props) => props.theme.shadows.medium};
+    color: ${(props) => props.theme.colors.text};
   }
 `;
 
@@ -101,26 +104,70 @@ const MenuButton = styled.button`
   display: block;
   &:focus {
     outline: none; 
+  }
+`;
+
+const ThemeToggleButton = styled(motion.button)`
+  background: ${(props) => props.theme.colors.surface};
+  color: ${(props) => props.theme.colors.text};
+  border: 1px solid ${(props) => props.theme.colors.border};
+  border-radius: ${(props) => props.theme.borderRadius.round};
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: ${(props) => props.theme.transitions.fast};
+  
+  &:hover {
+    color: ${(props) => props.theme.colors.primary};
+    border-color: ${(props) => props.theme.colors.primary};
+  }
 `;
 
 const Header = ({ onMenuToggle, sidebarOpen }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
   const searchInputRef = useRef(null);
+  const location = useLocation();
+  const dispatch = useAppDispatch();
+  const { theme } = useUI();
 
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
-      //setSearchQuery('');
-      if (searchInputRef.current) {
-        searchInputRef.current.blur();
+      if (location.pathname === '/') {
+        dispatch(setCountrySearchQuery(searchQuery.trim()));
+        // Note: We no longer clear the local state here
+        if (searchInputRef.current) {
+          searchInputRef.current.blur();
+        }
+      } else {
+        navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+        if (searchInputRef.current) {
+          searchInputRef.current.blur();
+        }
       }
+    }
+  };
+
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    dispatch(setCountrySearchQuery(''));
+    if (location.pathname !== '/') {
+        navigate('/');
     }
   };
 
   const handleLogoClick = () => {
     navigate("/");
+  };
+  
+  const handleThemeToggle = () => {
+    const newTheme = theme === 'light' ? 'dark' : 'light';
+    dispatch(setTheme(newTheme));
   };
 
   return (
@@ -141,21 +188,26 @@ const Header = ({ onMenuToggle, sidebarOpen }) => {
           <SearchIcon />
           <SearchInput
             type="text"
-            placeholder="Search channels..."
+            placeholder={location.pathname === '/' ? "Search countries..." : "Search channels..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             ref={searchInputRef}
           />
+          {searchQuery && (
+            <ClearSearchButton type="button" onClick={handleClearSearch}>
+              <FiX />
+            </ClearSearchButton>
+          )}
         </form>
       </SearchContainer>
-
-      {/* <SearchButton
-        onClick={handleSearch}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
+      
+      <ThemeToggleButton 
+        onClick={handleThemeToggle}
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
       >
-        Search
-      </SearchButton> */}
+        {theme === 'light' ? <FiMoon /> : <FiSun />}
+      </ThemeToggleButton>
     </HeaderContainer>
   );
 };

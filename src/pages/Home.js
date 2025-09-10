@@ -1,64 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
 import { FiPlay, FiGlobe, FiTv, FiStar } from 'react-icons/fi';
 import SkeletonLoader from '../components/SkeletonLoader';
-
+import { useSearch } from '../store/hooks'; // Import useSearch to get the search query
 
 const HomeContainer = styled.div`
   max-width: 1200px;
   margin: 0 auto;
   padding: 2rem 0;
-`;
-
-const HeroSection = styled.section`
-  text-align: center;
-  margin-bottom: 4rem;
-  padding: 3rem 2rem;
-  background: linear-gradient(135deg, ${props => props.theme.colors.surface}, ${props => props.theme.colors.card});
-  border-radius: ${props => props.theme.borderRadius.large};
-  border: 1px solid ${props => props.theme.colors.border};
-`;
-
-const HeroTitle = styled.h1`
-  font-size: 3rem;
-  font-weight: 700;
-  margin-bottom: 1rem;
-  background: linear-gradient(135deg, ${props => props.theme.colors.primary}, ${props => props.theme.colors.secondary});
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  
-  @media (max-width: ${props => props.theme.breakpoints.mobile}) {
-    font-size: 2rem;
-  }
-`;
-
-const HeroSubtitle = styled.p`
-  font-size: 1.25rem;
-  color: ${props => props.theme.colors.textSecondary};
-  margin-bottom: 2rem;
-  max-width: 600px;
-  margin-left: auto;
-  margin-right: auto;
-`;
-
-const CTAButton = styled(motion.button)`
-  background: linear-gradient(135deg, ${props => props.theme.colors.primary}, ${props => props.theme.colors.secondary});
-  color: white;
-  padding: 1rem 2rem;
-  border-radius: ${props => props.theme.borderRadius.medium};
-  font-size: 1.1rem;
-  font-weight: 600;
-  border: none;
-  cursor: pointer;
-  transition: ${props => props.theme.transitions.fast};
-  
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: ${props => props.theme.shadows.large};
-  }
 `;
 
 const Section = styled.section`
@@ -172,37 +123,40 @@ const LoadingSpinner = styled.div`
   color: ${props => props.theme.colors.textSecondary};
 `;
 
-const Home = ({countries, loading,handleSelectedCountry,selectedCountry}) => {
-  //  const [countries, setCountries] = useState(countries);
-  // const [loading, setLoading] = useState(loading);
+const NoResults = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.5rem;
+  color: ${props => props.theme.colors.textSecondary};
+  padding: 5rem 0;
+  text-align: center;
+`;
+
+const Home = ({ countries, loading, handleSelectedCountry, selectedCountry }) => {
   const navigate = useNavigate();
-  const {countryCode} = useParams();
+  const { countryCode } = useParams();
   
+  // Use the useSearch hook to get the search query from Redux
+  const { countrySearchQuery } = useSearch();
 
-  useEffect(()=>{
-    if(!countryCode)
-      localStorage.removeItem('selectedCountry'); 
-  })
+  // Filter countries based on the Redux state
+  const filteredCountries = countries.filter(country =>
+    country.name.toLowerCase().includes(countrySearchQuery.toLowerCase())
+  );
 
-  // useEffect(() => {
-  //   fetchCountries();
-  // }, []);
-
-  // const fetchCountries = async () => {
-  //   try {
-  //     setLoading(true);
-  //     const data = await apiService.getCountries();
-  //     setCountries(data);
-  //   } catch (error) {
-  //     console.error('Error fetching countries:', error);
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
+  useEffect(() => {
+    // This effect is not needed as Redux manages the selected country
+    // and is a better approach than using localStorage
+    if (!countryCode) {
+      // Logic to clear selected country from Redux can go here if needed
+      // (This is already handled by the App component on navigation)
+    }
+  }, [countryCode]);
 
   const handleCountryClick = (countryCode) => {
-    const country = countries.filter(c=>c?.code===countryCode);
-    handleSelectedCountry(country[0]);
+    const country = countries.find(c => c?.code === countryCode);
+    handleSelectedCountry(country);
     navigate(`/country/${countryCode}`);
   };
 
@@ -210,39 +164,36 @@ const Home = ({countries, loading,handleSelectedCountry,selectedCountry}) => {
     return <SkeletonLoader />;
   }
 
-  if (loading) {
-    return (
-      <LoadingSpinner>
-        <div>Loading TheBox...</div>
-      </LoadingSpinner>
-    );
-  }
-
   return (
     <HomeContainer>
-
       <Section>
         <SectionTitle>
           <FiGlobe />
           Available Countries
         </SectionTitle>
-        <CountriesGrid>
-          {countries.map((country) => (
-            <CountryCard
-              key={country.code}
-              onClick={() => handleCountryClick(country.code)}
-              whileHover={{ y: -5 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <CountryFlag src={country.flagUrl} alt={country.name} />
-              <CountryName>{country.name}</CountryName>
-              <CountryDescription>
-                Explore channels from {country.name} including news, entertainment, sports, and more.
-              </CountryDescription>
-              <ExploreButton>Explore Channels</ExploreButton>
-            </CountryCard>
-          ))}
-        </CountriesGrid>
+        {filteredCountries.length > 0 ? (
+          <CountriesGrid>
+            {filteredCountries.map((country) => (
+              <CountryCard
+                key={country.code}
+                onClick={() => handleCountryClick(country.code)}
+                whileHover={{ y: -5 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <CountryFlag src={country.flagUrl} alt={country.name} />
+                <CountryName>{country.name}</CountryName>
+                <CountryDescription>
+                  Explore channels from {country.name} including news, entertainment, sports, and more.
+                </CountryDescription>
+                <ExploreButton>Explore Channels</ExploreButton>
+              </CountryCard>
+            ))}
+          </CountriesGrid>
+        ) : (
+          <NoResults>
+            No countries match your search. Try a different query.
+          </NoResults>
+        )}
       </Section>
 
       <Section>
@@ -286,4 +237,4 @@ const Home = ({countries, loading,handleSelectedCountry,selectedCountry}) => {
   );
 };
 
-export default Home; 
+export default Home;

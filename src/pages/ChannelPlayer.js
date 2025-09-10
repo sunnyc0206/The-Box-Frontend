@@ -10,13 +10,15 @@ import {
   FiVolumeX,
   FiMaximize,
   FiSettings,
+  FiTv, 
 } from "react-icons/fi";
 import Hls from "hls.js";
-import { apiService } from "../services/apiService";
+import { useChannels } from "../store/hooks";
+import { fetchChannel, fetchChannelStream } from "../store/slices/channelsSlice";
 
 import img from '../assets/thebox.png';
 
-// ---------------- styled components ----------------
+
 const PageContainer = styled.div`
   max-width: 1400px;
   margin: 0 auto;
@@ -65,6 +67,23 @@ const VideoPlayer = styled.div`
     height: 100%;
     background: black;
   }
+`;
+
+const PlayerStatusOverlay = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  gap: 1rem;
+  font-size: 1.25rem;
+  z-index: 5;
 `;
 const PlayerControls = styled.div`
   padding: 1rem;
@@ -199,59 +218,134 @@ const ErrorMessage = styled.div`
   color: ${(props) => props.theme.colors.error};
 `;
 
-// ---------------- component ----------------
+
 const ChannelPlayer = () => {
   const { channelId } = useParams();
   const navigate = useNavigate();
   const videoRef = useRef(null);
 
-  const [channel, setChannel] = useState(null);
-  const [streamUrl, setStreamUrl] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const { currentChannel, currentStream, loading, error, dispatch } = useChannels();
+  
+ 
+  const [playerStatus, setPlayerStatus] = useState('loading');
+  const [errorDetails, setErrorDetails] = useState(null);
+  
   const [playing, setPlaying] = useState(true);
   const [volume, setVolume] = useState(0.8);
   const [muted, setMuted] = useState(false);
 
   useEffect(() => {
-    if (channelId) fetchChannelData();
-  }, [channelId]);
-
-  const fetchChannelData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const [channelData, streamData] = await Promise.all([
-        apiService.getChannel(channelId),
-        apiService.getChannelStream(channelId),
-      ]);
-      setChannel(channelData);
-      setStreamUrl(streamData);
-    } catch (err) {
-      console.error("Error fetching channel:", err);
-      setError("Failed to load channel. Please try again.");
-    } finally {
-      setLoading(false);
+    if (channelId) {
+      dispatch(fetchChannel(channelId));
+      dispatch(fetchChannelStream(channelId));
     }
-  };
+  }, [channelId, dispatch]);
 
-  // HLS.js setup
+  const streamUrl = currentStream?.streamUrl;
+  const channel = currentChannel;
+
+  
   useEffect(() => {
-    if (!videoRef.current || !streamUrl) return;
+    if (!videoRef.current || !streamUrl) {
+      
+      setPlayerStatus('unavailable');
+      return;
+    }
+
     const video = videoRef.current;
+    let hls = null;
 
     if (Hls.isSupported()) {
-      const hls = new Hls();
+      hls = new Hls();
       hls.loadSource(streamUrl);
       hls.attachMedia(video);
+      
+      
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        setPlayerStatus('playing');
+        video.play().catch(e => console.error("Autoplay failed:", e));
+      });
+      
       hls.on(Hls.Events.ERROR, (event, data) => {
         console.error("HLS error:", data);
+        if (data.fatal) {
+          setPlayerStatus('error');
+          setErrorDetails(data);
+          hls.destroy();
+        }
       });
-      return () => hls.destroy();
+      
+     
+      hls.on(Hls.Events.BUFFER_STALLED, () => {
+        setPlayerStatus('loading');
+      });
+     
+      hls.on(Hls.Events.BUFFER_UNSTALLED, () => {
+        setPlayerStatus('playing');
+      });
+      
+      hls.on(Hls.Events.LEVEL_LOADED, () => {
+          setPlayerStatus('playing');
+      });
+      
+     
+      video.addEventListener('play', () => setPlaying(true));
+      video.addEventListener('pause', () => setPlaying(false));
+      
+      return () => {
+        if (hls) {
+          hls.destroy();
+        }
+      };
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      
       video.src = streamUrl;
+      video.addEventListener('canplay', () => {
+        video.play().catch(e => console.error("Autoplay failed:", e));
+        setPlayerStatus('playing');
+      });
+      
+      
+      video.addEventListener('play', () => setPlaying(true));
+      video.addEventListener('pause', () => setPlaying(false));
+      
+    } else {
+      
+      setPlayerStatus('error');
+      setErrorDetails({ type: 'browser-support', details: 'HLS not supported in this browser' });
     }
   }, [streamUrl]);
+
+  
+  const getStatusText = () => {
+    switch (playerStatus) {
+      case 'playing':
+        return 'Live';
+      case 'loading':
+        return 'Loading...';
+      case 'error':
+      case 'unavailable':
+        return 'Unavailable';
+      default:
+        return 'Loading...';
+    }
+  };
+  
+  
+  const getErrorMessage = () => {
+      if (!streamUrl) {
+          return 'The stream URL is not available.';
+      }
+      if (errorDetails) {
+          if (errorDetails.type === 'networkError') {
+              return `Network Error: ${errorDetails.details.text}`;
+          }
+          if (errorDetails.type === 'browser-support') {
+              return 'HLS is not supported in this browser.';
+          }
+      }
+      return 'An unknown error occurred. Try again later.';
+  };
 
   const handleBack = () => navigate(-1);
   const togglePlay = () => {
@@ -261,7 +355,7 @@ const ChannelPlayer = () => {
     } else {
       videoRef.current.play();
     }
-    setPlaying(!playing);
+    
   };
   const toggleMute = () => setMuted(!muted);
   const handleVolumeChange = (e) => {
@@ -280,39 +374,35 @@ const ChannelPlayer = () => {
     }
   };
 
-  if (loading)
-    return (
-      <LoadingSpinner>
-        <div>Loading channel...</div>
-      </LoadingSpinner>
-    );
-
-  if (error)
+  
+  if (loading || error || !channel) {
     return (
       <PageContainer>
         <BackButton onClick={handleBack} whileHover={{ x: -5 }}>
           <FiArrowLeft /> Back
         </BackButton>
-        <ErrorMessage>
-          <h2>Error</h2>
-          <p>{error}</p>
-        </ErrorMessage>
+        {loading && (
+          <LoadingSpinner>
+            <div>Loading channel...</div>
+          </LoadingSpinner>
+        )}
+        {error && (
+          <ErrorMessage>
+            <h2>Error</h2>
+            <p>{error}</p>
+          </ErrorMessage>
+        )}
+        {!loading && !error && !channel && (
+          <ErrorMessage>
+            <h2>Channel Not Found</h2>
+            <p>The requested channel could not be found.</p>
+          </ErrorMessage>
+        )}
       </PageContainer>
     );
-
-  if (!channel || !streamUrl)
-    return (
-      <PageContainer>
-        <BackButton onClick={handleBack} whileHover={{ x: -5 }}>
-          <FiArrowLeft /> Back
-        </BackButton>
-        <ErrorMessage>
-          <h2>Channel Not Found</h2>
-          <p>The requested channel could not be found.</p>
-        </ErrorMessage>
-      </PageContainer>
-    );
-
+  }
+  
+  
   return (
     <PageContainer>
       <BackButton onClick={handleBack} whileHover={{ x: -5 }}>
@@ -330,6 +420,20 @@ const ChannelPlayer = () => {
               muted={muted}
               style={{ width: "100%", height: "100%" }}
             />
+            {/* ADDED: Conditionally render the status overlay */}
+            {playerStatus !== 'playing' && (
+                <PlayerStatusOverlay>
+                    {playerStatus === 'error' || playerStatus === 'unavailable' ? (
+                        <>
+                            <FiTv size={48} />
+                            <h3>Stream Unavailable</h3>
+                            <p>{getErrorMessage()}</p>
+                        </>
+                    ) : (
+                        <h3>Loading stream...</h3>
+                    )}
+                </PlayerStatusOverlay>
+            )}
           </VideoPlayer>
 
           <PlayerControls>
@@ -388,7 +492,8 @@ const ChannelPlayer = () => {
           <InfoSection>
             <InfoTitle>Stream Information</InfoTitle>
             <InfoContent>
-              <div>Status: <span style={{ color: "#10b981" }}>● Live</span></div>
+              {/* CHANGED: Dynamic status display */}
+              <div>Status: <span style={{ color: playerStatus === 'playing' ? "#10b981" : "#F59E0B" }}>● {getStatusText()}</span></div>
               <div>Quality: Auto</div>
               <div>
                 Last Updated:{" "}
