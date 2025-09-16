@@ -1,12 +1,12 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import styled from "styled-components";
-import { FiSearch, FiMenu, FiSun, FiMoon, FiX } from "react-icons/fi"; // Import FiX
+import { FiSearch, FiMenu, FiSun, FiMoon, FiX } from "react-icons/fi";
 import { motion } from "framer-motion";
 import img from "../assets/thebox-logo.png";
 import { useUI, useAppDispatch } from "../store/hooks";
 import { setTheme } from "../store/slices/uiSlice";
-import { setCountrySearchQuery, setSearchQuery } from "../store/slices/searchSlice";
+import { setCountrySearchQuery } from "../store/slices/searchSlice";
 
 const HeaderContainer = styled.header`
   background: ${(props) => props.theme.colors.surface};
@@ -103,7 +103,7 @@ const MenuButton = styled.button`
   cursor: pointer;
   display: block;
   &:focus {
-    outline: none; 
+    outline: none;
   }
 `;
 
@@ -135,39 +135,61 @@ const Header = ({ onMenuToggle, sidebarOpen }) => {
   const dispatch = useAppDispatch();
   const { theme } = useUI();
 
-  const handleSearch = (e) => {
+  // Handle live updates for country search
+  const handleCountrySearchChange = (e) => {
+    const query = e.target.value;
+    setSearchQuery(query);
+    dispatch(setCountrySearchQuery(query));
+  };
+
+  // Handle submit for channel search
+  const handleChannelSearchSubmit = (e) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      if (location.pathname === '/') {
-        dispatch(setCountrySearchQuery(searchQuery.trim()));
-        // Note: We no longer clear the local state here
-        if (searchInputRef.current) {
-          searchInputRef.current.blur();
-        }
-      } else {
-        navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
-        if (searchInputRef.current) {
-          searchInputRef.current.blur();
-        }
+      navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+      if (searchInputRef.current) {
+        searchInputRef.current.blur();
       }
     }
   };
 
   const handleClearSearch = () => {
     setSearchQuery('');
+    // Dispatch an empty string to clear the search filter in Redux
     dispatch(setCountrySearchQuery(''));
     if (location.pathname !== '/') {
-        navigate('/');
+      navigate('/');
     }
   };
 
   const handleLogoClick = () => {
     navigate("/");
+    // Clear the search when navigating to the home page
+    setSearchQuery('');
+    dispatch(setCountrySearchQuery(''));
   };
-  
+
   const handleThemeToggle = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light';
     dispatch(setTheme(newTheme));
+  };
+
+  // Determine the correct onChange handler based on the current path
+  const handleInputChange = (e) => {
+    if (location.pathname === '/') {
+      handleCountrySearchChange(e);
+    } else {
+      setSearchQuery(e.target.value);
+    }
+  };
+
+  // Determine the correct form onSubmit handler
+  const handleFormSubmit = (e) => {
+    if (location.pathname !== '/') {
+      handleChannelSearchSubmit(e);
+    } else {
+      e.preventDefault(); // Prevent page reload on enter key for country search
+    }
   };
 
   return (
@@ -184,13 +206,13 @@ const Header = ({ onMenuToggle, sidebarOpen }) => {
       </Logo>
 
       <SearchContainer>
-        <form onSubmit={handleSearch}>
+        <form onSubmit={handleFormSubmit}>
           <SearchIcon />
           <SearchInput
             type="text"
             placeholder={location.pathname === '/' ? "Search countries..." : "Search channels..."}
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={handleInputChange}
             ref={searchInputRef}
           />
           {searchQuery && (
@@ -200,8 +222,8 @@ const Header = ({ onMenuToggle, sidebarOpen }) => {
           )}
         </form>
       </SearchContainer>
-      
-      <ThemeToggleButton 
+
+      <ThemeToggleButton
         onClick={handleThemeToggle}
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
